@@ -68,7 +68,23 @@ th:first-child,td:first-child{position:sticky;left:0;background:#EDF2F6;color:#1
 .kpi strong{font-size:28px;color:var(--blue2);display:block}
 .footer{position:fixed;right:14px;bottom:10px;background:white;color:var(--blue);border:1px solid var(--border);border-radius:999px;padding:8px 14px;font-size:12px;font-weight:900;box-shadow:0 4px 16px #0002;z-index:50}
 .msg{font-weight:900;margin-top:12px}
-@media(max-width:1000px){.home-grid,.grid-2,.grid-3,.kpi-grid{grid-template-columns:1fr}header{flex-direction:column;align-items:flex-start}.nav button{width:100%}.nav{width:100%}.drawer{width:92vw;right:-100vw}}
+.chart-container{background:white;border:1px solid var(--border);border-radius:14px;padding:20px;margin:10px 0}
+.bar-chart{display:flex;align-items:flex-end;gap:15px;height:250px;margin:20px 0}
+.bar{display:flex;flex-direction:column;align-items:center;gap:8px;flex:1}
+.bar-fill{width:100%;background:linear-gradient(180deg,var(--blue),var(--blue2));border-radius:8px 8px 0 0;min-height:30px;transition:.3s}
+.bar-fill:hover{filter:brightness(1.1)}
+.bar-label{font-size:12px;font-weight:700;color:var(--muted);text-align:center}
+.stat-row{display:grid;grid-template-columns:200px 1fr;gap:15px;align-items:center;padding:15px;border-bottom:1px solid var(--border)}
+.stat-row:last-child{border-bottom:none}
+.stat-bar{height:30px;background:#E9EEF3;border-radius:8px;overflow:hidden;position:relative}
+.stat-bar-fill{height:100%;background:linear-gradient(90deg,var(--green),var(--blue));display:flex;align-items:center;justify-content:flex-end;padding-right:10px;color:white;font-weight:700;font-size:12px}
+.stats-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:20px}
+.type-badge{display:inline-block;padding:6px 12px;border-radius:20px;font-size:12px;font-weight:700;margin:4px}
+.type-preventive{background:#D1FAE5;color:#065F46}
+.type-corrective{background:#FEE2E2;color:#991B1B}
+.type-control{background:#FEF3C7;color:#92400E}
+.type-improvement{background:#E0E7FF;color:#3730A3}
+@media(max-width:1000px){.home-grid,.grid-2,.grid-3,.kpi-grid{grid-template-columns:1fr}header{flex-direction:column;align-items:flex-start}.nav button{width:100%}.nav{width:100%}.drawer{width:92vw;right:-100vw}.stats-grid{grid-template-columns:1fr}}
 
 /* --- Correctifs v2 --- */
 .login-card .btn{width:100%;display:block;margin-top:18px;text-align:center}
@@ -120,6 +136,7 @@ th:first-child,td:first-child{position:sticky;left:0;background:#EDF2F6;color:#1
     <button class="btn-light" onclick="showPage('reservation')">Planning réservation</button>
     <button class="btn-light" onclick="showPage('formation')">Planning formateurs</button>
     <button class="btn-light" onclick="showPage('gmao')">Gamme / GMAO</button>
+    <button class="btn-orange" onclick="showPage('statistics')">📊 Statistiques</button>
     <button class="btn-light" onclick="showPage('settings')">Paramètres</button>
     <button class="btn-red" onclick="deconnexion()">Déconnexion</button>
   </div>
@@ -193,6 +210,54 @@ th:first-child,td:first-child{position:sticky;left:0;background:#EDF2F6;color:#1
   <div class="card">
     <h2>Parc machines & mini-GMAO</h2>
     <div class="table-wrap"><table id="gmaoTable"></table></div>
+  </div>
+</section>
+
+<section id="page-statistics" class="hidden">
+  <div class="toolbar">
+    <select id="statsPeriod" onchange="renderStatistics()">
+      <option value="all">Toute la période</option>
+      <option value="year">Cette année</option>
+      <option value="month">Ce mois</option>
+      <option value="week">Cette semaine</option>
+    </select>
+  </div>
+
+  <div class="kpi-grid">
+    <div class="kpi"><strong id="statsTotalMaint">0</strong>Maintenances totales</div>
+    <div class="kpi"><strong id="statsPreventive">0</strong>Préventives</div>
+    <div class="kpi"><strong id="statsCorrectif">0</strong>Correctives</div>
+    <div class="kpi"><strong id="statsTermine">0</strong>Terminées</div>
+  </div>
+
+  <div class="grid-2">
+    <div class="card">
+      <h2>📊 Répartition par type</h2>
+      <div class="chart-container">
+        <div class="bar-chart" id="typeChart"></div>
+      </div>
+    </div>
+    <div class="card">
+      <h2>⏱️ Répartition par statut</h2>
+      <div class="chart-container">
+        <div class="bar-chart" id="statusChart"></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="card">
+    <h2>🔴 Machines les plus problématiques</h2>
+    <div id="topMachines"></div>
+  </div>
+
+  <div class="card">
+    <h2>📈 Historique des maintenances par type</h2>
+    <div id="maintenanceByType"></div>
+  </div>
+
+  <div class="card">
+    <h2>⏰ Maintenances récentes</h2>
+    <div id="recentMaintenance"></div>
   </div>
 </section>
 
@@ -309,12 +374,13 @@ let firebaseSaving = false;
 
 const APP_KEY="uimm_brest_firebase_v1";
 const PLANNING_YEAR=2026;
-const INITIAL_DATA={"classes": [{"nom": "BacPro MELEC", "couleur": "#005B84"}, {"nom": "BTS MS SP", "couleur": "#E30613"}, {"nom": "BTS ELT", "couleur": "#0077A3"}, {"nom": "BTS SEF", "couleur": "#EF7D00"}, {"nom": "LPro CAPPI", "couleur": "#6F2DBD"}, {"nom": "LPro MSI", "couleur": "#008C72"}, {"nom": "Région TMI", "couleur": "#7A9A01"}, {"nom": "CPro TMI", "couleur": "#C2410C"}, {"nom": "TSMI Dreyfus", "couleur": "#334155"}, {"nom": "IFTI", "couleur": "#0F766E"}], "trainers": [{"nom": "Formateur 1", "couleur": "#005B84"}, {"nom": "Formateur 2", "couleur": "#E30613"}, {"nom": "Formateur 3", "couleur": "#0F766E"}, {"nom": "Formateur 4", "couleur": "#EF7D00"}], "machines": [{"zone": "A", "type": "Mixte", "atelier": "ATELIER Mécanique", "nom": "Perceuse Sidamo (BRIF08)"}, {"zone": "A", "type": "Mixte", "atelier": "ATELIER Mécanique", "nom": "Perceuse Optimum (BRIF10)"}, {"zone": "A", "type": "Mixte", "atelier": "ATELIER Mécanique", "nom": "Touret Mac Alister"}, {"zone": "A", "type": "Mixte", "atelier": "ATELIER Mécanique", "nom": "Presse (BRIF09)"}, {"zone": "A", "type": "Mixte", "atelier": "ATELIER Mécanique", "nom": "Etagére PDR Diverses"}, {"zone": "A", "type": "Mixte", "atelier": "ATELIER Mécanique", "nom": "Malaxeur (PLA8 05)"}, {"zone": "A", "type": "Mixte", "atelier": "ATELIER Mécanique", "nom": "Presse (PLA8 02)"}, {"zone": "B", "type": "Mixte", "atelier": "ATELIER Pneumatique", "nom": "6 Platines"}, {"zone": "C", "type": "Mixte", "atelier": "ATELIER Electro Pneumatique", "nom": "6 Platines"}, {"zone": "D", "type": "Mixte", "atelier": "ATELIER Hydraulique", "nom": "Banc (BRMA 13)"}, {"zone": "D", "type": "Mixte", "atelier": "ATELIER Hydraulique", "nom": "Banc (BRMA 10)"}, {"zone": "D", "type": "Mixte", "atelier": "ATELIER Hydraulique", "nom": "Basculeur Hydraulique (BRIF 04)"}, {"zone": "D", "type": "Mixte", "atelier": "ATELIER Hydraulique", "nom": "Banc Hydraulique basculeur (BRIF 04)"}, {"zone": "E", "type": "FC", "atelier": "ATELIER Maintenance Elec IFTI", "nom": "Banc de câblage (Qté 12 / Premier Ilot)"}, {"zone": "E", "type": "FC", "atelier": "ATELIER Maintenance Elec IFTI", "nom": "Banc de câblage (Qté 6 / Second Ilot)"}, {"zone": "E", "type": "FC", "atelier": "ATELIER Maintenance Elec IFTI", "nom": "Banc de câblage Pont"}, {"zone": "E", "type": "FC", "atelier": "ATELIER Maintenance Elec IFTI", "nom": "Banc de câblage PressCan"}, {"zone": "F", "type": "FC", "atelier": "Bureau Maintenance Elec IFTI", "nom": "Ascenseur Schneider"}, {"zone": "F", "type": "FC", "atelier": "Bureau Maintenance Elec IFTI", "nom": "Banc de déplacement"}, {"zone": "F", "type": "FC", "atelier": "Bureau Maintenance Elec IFTI", "nom": "Banc de Palétisation"}, {"zone": "F", "type": "FC", "atelier": "Bureau Maintenance Elec IFTI", "nom": "Banc étude capteurs"}, {"zone": "F", "type": "FC", "atelier": "Bureau Maintenance Elec IFTI", "nom": "Imprimante 3D"}, {"zone": "F", "type": "FC", "atelier": "Bureau Maintenance Elec IFTI", "nom": "Banc de test (pas de notice)"}, {"zone": "F", "type": "FC", "atelier": "Bureau Maintenance Elec IFTI", "nom": "Robot"}, {"zone": "G", "type": "FC", "atelier": "Atelier Maintenance Elec FC", "nom": "Banc de test Malaxeur"}, {"zone": "G", "type": "FC", "atelier": "Atelier Maintenance Elec FC", "nom": "Banc de test Porte coulissante"}, {"zone": "G", "type": "FC", "atelier": "Atelier Maintenance Elec FC", "nom": "Banc de test Perçeuse automatique"}, {"zone": "G", "type": "FC", "atelier": "Atelier Maintenance Elec FC", "nom": "Banc de test Broyeur"}, {"zone": "G", "type": "FC", "atelier": "Atelier Maintenance Elec FC", "nom": "Xylophonis (BREL 02)"}, {"zone": "G", "type": "FC", "atelier": "Atelier Maintenance Elec FC", "nom": "Banc de test Pont Tablier"}, {"zone": "G", "type": "FC", "atelier": "Atelier Maintenance Elec FC", "nom": "Tapis peseur Sartoruis"}, {"zone": "H", "type": "FI", "atelier": "Atelier Maintenance Câblage", "nom": "Banc de câblage (Qté 12)"}, {"zone": "I", "type": "FC", "atelier": "Atelier Maintenance FC", "nom": "Ligne Savonic Extrudicc (BRIF 01)"}, {"zone": "I", "type": "FC", "atelier": "Atelier Maintenance FC", "nom": "Ligne Savonic Groupe Froid (BRIF 11)"}, {"zone": "I", "type": "FC", "atelier": "Atelier Maintenance FC", "nom": "Ligne Savonic Coupalicc (BRIF 02)"}, {"zone": "I", "type": "FC", "atelier": "Atelier Maintenance FC", "nom": "Ligne Savonic Pressic (BRIF 03)"}, {"zone": "I", "type": "FC", "atelier": "Atelier Maintenance FC", "nom": "Dechiqueticc (BRMA 22)"}, {"zone": "I", "type": "FC", "atelier": "Atelier Maintenance FC", "nom": "Savonic 2/3"}, {"zone": "J", "type": "FI", "atelier": "Atelier Maintenance Systémes", "nom": "Percètric (BRMA 05)"}, {"zone": "J", "type": "FI", "atelier": "Atelier Maintenance Systémes", "nom": "Ligne Ecolpap (BRMA 21)"}, {"zone": "J", "type": "FI", "atelier": "Atelier Maintenance Systémes", "nom": "Convoyeur Mainelec (BRMA 11)"}, {"zone": "J", "type": "FI", "atelier": "Atelier Maintenance Systémes", "nom": "Paletiseur PALETICC"}, {"zone": "J", "type": "FI", "atelier": "Atelier Maintenance Systémes", "nom": "Convoyeur ASI - Translateur rotatif (BRMA 19)"}, {"zone": "J", "type": "FI", "atelier": "Atelier Maintenance Systémes", "nom": "Banc d'étude vibration (BRMA 02)"}, {"zone": "J", "type": "FI", "atelier": "Atelier Maintenance Systémes", "nom": "Banc de traitement de surface (BRMA 12)"}, {"zone": "J", "type": "FI", "atelier": "Atelier Maintenance Systémes", "nom": "Banc risque éléctrique (BRMA 04)"}, {"zone": "J", "type": "FI", "atelier": "Atelier Maintenance Systémes", "nom": "Productis (BRMA 01)"}, {"zone": "K", "type": "FI", "atelier": "Atelier Maintenance Elec FI", "nom": "Armoire de compensation d'énergie réactive (BREL 06)"}, {"zone": "K", "type": "FI", "atelier": "Atelier Maintenance Elec FI", "nom": "Banc de mesure électrique n°1"}, {"zone": "K", "type": "FI", "atelier": "Atelier Maintenance Elec FI", "nom": "Banc de mesure électrique n°2"}, {"zone": "K", "type": "FI", "atelier": "Atelier Maintenance Elec FI", "nom": "Banc de test Schneider Domotique"}, {"zone": "K", "type": "FI", "atelier": "Atelier Maintenance Elec FI", "nom": "Banc de test Habitat (BRMA 23)"}, {"zone": "K", "type": "FI", "atelier": "Atelier Maintenance Elec FI", "nom": "Banc de distribution solaire mobile (BRMA 26)"}, {"zone": "K", "type": "FI", "atelier": "Atelier Maintenance Elec FI", "nom": "Systéme éolienne didactisé (BRMA 09)"}, {"zone": "K", "type": "FI", "atelier": "Atelier Maintenance Elec FI", "nom": "CH30 Site photovoltaique (BREL 10)"}, {"zone": "K", "type": "FI", "atelier": "Atelier Maintenance Elec FI", "nom": "Banc de régulation de débit (BREL 03)"}, {"zone": "K", "type": "FI", "atelier": "Atelier Maintenance Elec FI", "nom": "Banc de régime de neutre (BRMA 03)"}, {"zone": "K", "type": "FI", "atelier": "Atelier Maintenance Elec FI", "nom": "Banc SOL-ART12 n°1 (BRMA 24)"}, {"zone": "K", "type": "FI", "atelier": "Atelier Maintenance Elec FI", "nom": "Banc SOL-ART12 n°2 (BRMA 25)"}, {"zone": "K", "type": "FI", "atelier": "Atelier Maintenance Elec FI", "nom": "Banc didactique Axe numérique (BREL 01)"}], "reservations": [], "trainingEvents": [{"id": "tr-1-Lundi-1", "week": 1, "day": "Lundi", "trainer": "Formateur 1", "machine": "Etagére PDR Diverses", "objectif": "Découverte : sécurité, documentation, identification des organes principaux", "detail": "Repérage des PDR, organisation atelier, préparation des TP et consignes de rangement"}, {"id": "tr-1-Lundi-2", "week": 1, "day": "Lundi", "trainer": "Formateur 2", "machine": "Banc de câblage (Qté 12 / Premier Ilot)", "objectif": "Découverte : sécurité, documentation, identification des organes principaux", "detail": "Lecture de schémas, câblage de circuits, contrôle continuité et repérage défauts"}, {"id": "tr-1-Lundi-3", "week": 1, "day": "Lundi", "trainer": "Formateur 3", "machine": "Banc de câblage (Qté 6 / Second Ilot)", "objectif": "Découverte : sécurité, documentation, identification des organes principaux", "detail": "Câblage autonome, essais, contrôle qualité et préparation d'exercices apprenants"}, {"id": "tr-1-Lundi-4", "week": 1, "day": "Lundi", "trainer": "Formateur 4", "machine": "Banc de câblage Pont", "objectif": "Découverte : sécurité, documentation, identification des organes principaux", "detail": "Mise en service, câblage de commande, sécurité, tests et diagnostic simple"}], "maintenance": []};
+const INITIAL_DATA={"classes": [{"nom": "BacPro MELEC", "couleur": "#005B84"}, {"nom": "BTS MS SP", "couleur": "#E30613"}, {"nom": "BTS ELT", "couleur": "#0077A3"}, {"nom": "BTS SEF", "couleur": "#EF7D00"}, {"nom": "LPro CAPPI", "couleur": "#6F2DBD"}, {"nom": "LPro MSI", "couleur": "#008C72"}, {"nom": "Région TMI", "couleur": "#7A9A01"}, {"nom": "CPro TMI", "couleur": "#C2410C"}, {"nom": "TSMI Dreyfus", "couleur": "#334155"}, {"nom": "IFTI", "couleur": "#0F766E"}], "trainers": [{"nom": "Formateur 1", "couleur": "#005B84"}, {"nom": "Formateur 2", "couleur": "#E30613"}, {"nom": "Formateur 3", "couleur": "#0F766E"}, {"nom": "Formateur 4", "couleur": "#EF7D00"}], "machines": [], "reservations": [], "trainingEvents": [], "maintenance": []};
 const HORAIRES=["08h-09h","09h-10h","10h-11h","11h-12h","13h-14h","14h-15h","15h-16h","16h-17h"];
 const JOURS=["Lundi","Mardi","Mercredi","Jeudi","Vendredi"];
 let state=loadState();
 let currentReservationDate=new Date();
 let currentTrainingWeek=1;
+let currentStatsPeriod="all";
 
 function loadState(){
   return structuredClone(INITIAL_DATA);
@@ -368,9 +434,59 @@ function fillStaticControls(){
   maintenanceDate.value=iso(new Date());
   reservationDate.value=iso(currentReservationDate);
 }
-function renderAll(){renderLegends();renderReservation();renderTrainingWeeks();renderTraining();renderGmaoFilters();renderGmao();renderSettings();renderHome();}
-function showPage(p){["home","reservation","formation","gmao","settings"].forEach(x=>document.getElementById("page-"+x).classList.add("hidden"));document.getElementById("page-"+p).classList.remove("hidden"); if(p==="reservation")renderReservation(); if(p==="formation")renderTraining(); if(p==="gmao")renderGmao(); if(p==="settings")renderSettings();}
+function renderAll(){renderLegends();renderReservation();renderTrainingWeeks();renderTraining();renderGmaoFilters();renderGmao();renderSettings();renderHome();renderStatistics();}
+function showPage(p){["home","reservation","formation","gmao","statistics","settings"].forEach(x=>document.getElementById("page-"+x).classList.add("hidden"));document.getElementById("page-"+p).classList.remove("hidden"); if(p==="statistics")renderStatistics();}
 function renderLegends(){classLegend.innerHTML=state.classes.map(c=>`<span class="badge"><span class="dot" style="background:${c.couleur}"></span>${esc(c.nom)}</span>`).join("");}
+
+function filterByPeriod(items){
+  const now=new Date();
+  return items.filter(m=>{
+    if(!m.date) return true;
+    const itemDate=new Date(m.date);
+    if(currentStatsPeriod==="week") return (now-itemDate)<7*24*60*60*1000;
+    if(currentStatsPeriod==="month") return itemDate.getMonth()===now.getMonth() && itemDate.getFullYear()===now.getFullYear();
+    if(currentStatsPeriod==="year") return itemDate.getFullYear()===now.getFullYear();
+    return true;
+  });
+}
+
+function renderStatistics(){
+  const filtered=filterByPeriod(state.maintenance);
+  const prev=filtered.filter(m=>m.type==="Préventive");
+  const corr=filtered.filter(m=>m.type==="Corrective");
+  const termine=filtered.filter(m=>m.status==="Terminé");
+
+  statsTotalMaint.textContent=filtered.length;
+  statsPreventive.textContent=prev.length;
+  statsCorrectif.textContent=corr.length;
+  statsTermine.textContent=termine.length;
+
+  // Graphique types
+  const types={Préventive:prev.length,Corrective:corr.length,"Contrôle sécurité":filtered.filter(m=>m.type==="Contrôle sécurité").length,Amélioration:filtered.filter(m=>m.type==="Amélioration").length};
+  const maxType=Math.max(...Object.values(types),1);
+  typeChart.innerHTML=Object.entries(types).map(([k,v])=>`<div class="bar"><div class="bar-fill" style="height:${(v/maxType)*220}px;background:${k==="Préventive"?"var(--green)":k==="Corrective"?"var(--red)":"var(--orange)"}"></div><div class="bar-label">${esc(k)} (${v})</div></div>`).join("");
+
+  // Graphique statuts
+  const statuses={Terminé:termine.length,"En cours":filtered.filter(m=>m.status==="En cours").length,"À faire":filtered.filter(m=>m.status==="À faire").length};
+  const maxStatus=Math.max(...Object.values(statuses),1);
+  statusChart.innerHTML=Object.entries(statuses).map(([k,v])=>`<div class="bar"><div class="bar-fill" style="height:${(v/maxStatus)*220}px;background:${k==="Terminé"?"var(--green)":k==="En cours"?"var(--orange)":"var(--red)"}"></div><div class="bar-label">${esc(k)} (${v})</div></div>`).join("");
+
+  // Machines problématiques
+  const machineCount={};
+  filtered.forEach(m=>{machineCount[m.machine]=(machineCount[m.machine]||0)+1});
+  const topMachinesArr=Object.entries(machineCount).sort((a,b)=>b[1]-a[1]).slice(0,10);
+  const maxMachines=Math.max(...topMachinesArr.map(([,v])=>v),1);
+  topMachines.innerHTML=topMachinesArr.map(([name,count])=>`<div class="stat-row"><div style="font-weight:700">${esc(name)}</div><div class="stat-bar"><div class="stat-bar-fill" style="width:${(count/maxMachines)*100}%">${count}</div></div></div>`).join("");
+
+  // Maintenance par type
+  const byType={};
+  filtered.forEach(m=>{const type=m.type||"Autre";byType[type]=(byType[type]||0)+1});
+  maintenanceByType.innerHTML=Object.entries(byType).map(([type,count])=>`<div class="stat-row"><div><span class="type-badge type-${type.toLowerCase().replace(" ","-")}">${esc(type)}</span></div><div class="stat-bar"><div class="stat-bar-fill" style="width:${(count/(Math.max(...Object.values(byType),1)))*100}%">${count}</div></div></div>`).join("");
+
+  // Maintenances récentes
+  const recent=filtered.sort((a,b)=>new Date(b.date)-new Date(a.date)).slice(0,10);
+  recentMaintenance.innerHTML=recent.length?recent.map(m=>`<div class="stat-row"><div><b>${esc(m.machine)}</b><br><small>${esc(m.date)} · ${esc(m.type)}</small></div><div><span class="badge">${esc(m.status)}</span></div></div>`).join(""):"<p>Aucune maintenance enregistrée pour cette période.</p>";
+}
 
 function changeReservationDay(n){currentReservationDate.setDate(currentReservationDate.getDate()+n);reservationDate.value=iso(currentReservationDate);renderReservation();}
 function todayReservation(){currentReservationDate=new Date();reservationDate.value=iso(currentReservationDate);renderReservation();}
