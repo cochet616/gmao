@@ -1,0 +1,310 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Ma Liste de Tâches</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            padding: 20px;
+        }
+
+        .container {
+            background: white;
+            border-radius: 10px;
+            box-shadow: 0 10px 25px rgba(0, 0, 0, 0.2);
+            width: 100%;
+            max-width: 500px;
+            padding: 30px;
+        }
+
+        h1 {
+            text-align: center;
+            color: #333;
+            margin-bottom: 30px;
+            font-size: 28px;
+        }
+
+        .input-container {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 20px;
+        }
+
+        #taskInput {
+            flex: 1;
+            padding: 12px;
+            border: 2px solid #ddd;
+            border-radius: 5px;
+            font-size: 16px;
+            transition: border-color 0.3s;
+        }
+
+        #taskInput:focus {
+            outline: none;
+            border-color: #667eea;
+        }
+
+        #addBtn {
+            padding: 12px 20px;
+            background: #667eea;
+            color: white;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 16px;
+            font-weight: bold;
+            transition: background 0.3s;
+        }
+
+        #addBtn:hover {
+            background: #764ba2;
+        }
+
+        #taskList {
+            list-style: none;
+        }
+
+        .task-item {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            padding: 15px;
+            background: #f9f9f9;
+            border-radius: 5px;
+            margin-bottom: 10px;
+            transition: all 0.3s;
+        }
+
+        .task-item:hover {
+            background: #f0f0f0;
+            transform: translateX(5px);
+        }
+
+        .task-item.completed {
+            opacity: 0.6;
+        }
+
+        .task-item.completed .task-text {
+            text-decoration: line-through;
+            color: #999;
+        }
+
+        .checkbox {
+            width: 20px;
+            height: 20px;
+            cursor: pointer;
+            accent-color: #667eea;
+        }
+
+        .task-text {
+            flex: 1;
+            font-size: 16px;
+            color: #333;
+        }
+
+        .delete-btn {
+            background: #ff6b6b;
+            color: white;
+            border: none;
+            padding: 8px 12px;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 14px;
+            transition: background 0.3s;
+        }
+
+        .delete-btn:hover {
+            background: #ff5252;
+        }
+
+        .empty-message {
+            text-align: center;
+            color: #999;
+            padding: 30px;
+            font-size: 16px;
+        }
+
+        .stats {
+            margin-top: 20px;
+            padding-top: 20px;
+            border-top: 2px solid #ddd;
+            text-align: center;
+            color: #666;
+            font-size: 14px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>📝 Ma Liste de Tâches</h1>
+        
+        <div class="input-container">
+            <input 
+                type="text" 
+                id="taskInput" 
+                placeholder="Ajouter une nouvelle tâche..."
+                autocomplete="off"
+            >
+            <button id="addBtn">Ajouter</button>
+        </div>
+
+        <ul id="taskList"></ul>
+        
+        <div class="empty-message" id="emptyMessage">
+            Aucune tâche. Commencez par en ajouter une ! 🚀
+        </div>
+
+        <div class="stats">
+            <p>Total: <span id="totalTasks">0</span> | Complétées: <span id="completedTasks">0</span></p>
+        </div>
+    </div>
+
+    <script>
+        // Variables
+        const taskInput = document.getElementById('taskInput');
+        const addBtn = document.getElementById('addBtn');
+        const taskList = document.getElementById('taskList');
+        const emptyMessage = document.getElementById('emptyMessage');
+        const totalTasksSpan = document.getElementById('totalTasks');
+        const completedTasksSpan = document.getElementById('completedTasks');
+
+        // Clé pour le stockage local
+        const STORAGE_KEY = 'todoList';
+
+        // Charger les tâches au démarrage
+        loadTasks();
+
+        // Événements
+        addBtn.addEventListener('click', addTask);
+        taskInput.addEventListener('keypress', (e) => {
+            if (e.key === 'Enter') addTask();
+        });
+
+        // Fonction pour ajouter une tâche
+        function addTask() {
+            const taskText = taskInput.value.trim();
+
+            if (taskText === '') {
+                alert('Veuillez entrer une tâche !');
+                return;
+            }
+
+            const task = {
+                id: Date.now(),
+                text: taskText,
+                completed: false
+            };
+
+            let tasks = getTasks();
+            tasks.push(task);
+            saveTasks(tasks);
+
+            taskInput.value = '';
+            taskInput.focus();
+            renderTasks();
+        }
+
+        // Fonction pour supprimer une tâche
+        function deleteTask(id) {
+            let tasks = getTasks();
+            tasks = tasks.filter(task => task.id !== id);
+            saveTasks(tasks);
+            renderTasks();
+        }
+
+        // Fonction pour basculer le statut d'une tâche
+        function toggleTask(id) {
+            let tasks = getTasks();
+            tasks = tasks.map(task => 
+                task.id === id ? { ...task, completed: !task.completed } : task
+            );
+            saveTasks(tasks);
+            renderTasks();
+        }
+
+        // Fonction pour afficher les tâches
+        function renderTasks() {
+            const tasks = getTasks();
+            taskList.innerHTML = '';
+
+            if (tasks.length === 0) {
+                emptyMessage.style.display = 'block';
+                totalTasksSpan.textContent = '0';
+                completedTasksSpan.textContent = '0';
+                return;
+            }
+
+            emptyMessage.style.display = 'none';
+
+            tasks.forEach(task => {
+                const li = document.createElement('li');
+                li.className = `task-item ${task.completed ? 'completed' : ''}`;
+
+                li.innerHTML = `
+                    <input 
+                        type="checkbox" 
+                        class="checkbox" 
+                        ${task.completed ? 'checked' : ''}
+                        onchange="toggleTask(${task.id})"
+                    >
+                    <span class="task-text">${escapeHtml(task.text)}</span>
+                    <button class="delete-btn" onclick="deleteTask(${task.id})">Supprimer</button>
+                `;
+
+                taskList.appendChild(li);
+            });
+
+            updateStats(tasks);
+        }
+
+        // Fonction pour mettre à jour les statistiques
+        function updateStats(tasks) {
+            const total = tasks.length;
+            const completed = tasks.filter(task => task.completed).length;
+            totalTasksSpan.textContent = total;
+            completedTasksSpan.textContent = completed;
+        }
+
+        // Fonction pour récupérer les tâches du localStorage
+        function getTasks() {
+            const tasks = localStorage.getItem(STORAGE_KEY);
+            return tasks ? JSON.parse(tasks) : [];
+        }
+
+        // Fonction pour sauvegarder les tâches dans localStorage
+        function saveTasks(tasks) {
+            localStorage.setItem(STORAGE_KEY, JSON.stringify(tasks));
+        }
+
+        // Fonction pour charger les tâches au démarrage
+        function loadTasks() {
+            renderTasks();
+        }
+
+        // Fonction pour échapper les caractères HTML (sécurité)
+        function escapeHtml(text) {
+            const map = {
+                '&': '&amp;',
+                '<': '&lt;',
+                '>': '&gt;',
+                '"': '&quot;',
+                "'": '&#039;'
+            };
+            return text.replace(/[&<>"']/g, m => map[m]);
+        }
+    </script>
+</body>
+</html>
